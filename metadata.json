@@ -1,0 +1,5 @@
+{
+  "name": "Faculty Information System (FIS)",
+  "description": "A comprehensive platform for managing faculty data, attendance, timetable, leaves, and research activities with role-based access control.",
+  "requestFramePermissions": []
+}

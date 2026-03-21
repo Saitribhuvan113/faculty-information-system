@@ -1,0 +1,154 @@
+{
+  "entities": {
+    "users": {
+      "title": "User",
+      "description": "System users including Admin, HOD, and Faculty",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "hod", "faculty"] },
+        "departmentId": { "type": "string", "description": "ID of the department (for HOD and Faculty)" },
+        "profilePhotoUrl": { "type": "string", "format": "uri" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "departments": {
+      "title": "Department",
+      "description": "Academic departments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "hodUid": { "type": "string", "description": "UID of the HOD" }
+      },
+      "required": ["id", "name"]
+    },
+    "subjects": {
+      "title": "Subject",
+      "description": "Academic subjects",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "departmentId": { "type": "string" }
+      },
+      "required": ["id", "name", "code", "departmentId"]
+    },
+    "courses": {
+      "title": "Course",
+      "description": "Academic courses",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "departmentId": { "type": "string" }
+      },
+      "required": ["id", "name", "code", "departmentId"]
+    },
+    "attendance": {
+      "title": "Attendance",
+      "description": "Faculty attendance records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "facultyUid": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "status": { "type": "string", "enum": ["present", "absent"] },
+        "markedBy": { "type": "string" },
+        "year": { "type": "string", "enum": ["1st", "2nd", "3rd"] }
+      },
+      "required": ["id", "facultyUid", "date", "status", "markedBy", "year"]
+    },
+    "timetable": {
+      "title": "Timetable",
+      "description": "Class schedules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "facultyUid": { "type": "string" },
+        "facultyName": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "courseId": { "type": "string" },
+        "day": { "type": "string", "enum": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" }
+      },
+      "required": ["id", "facultyUid", "facultyName", "subjectId", "courseId", "day", "startTime", "endTime"]
+    },
+    "leaves": {
+      "title": "Leave",
+      "description": "Leave applications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "facultyUid": { "type": "string" },
+        "type": { "type": "string" },
+        "startDate": { "type": "string", "format": "date" },
+        "endDate": { "type": "string", "format": "date" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "approvedBy": { "type": "string" },
+        "appliedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "facultyUid", "type", "startDate", "endDate", "reason", "status", "appliedAt"]
+    },
+    "research": {
+      "title": "Research",
+      "description": "Research papers and publications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "facultyUid": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "publicationDate": { "type": "string", "format": "date" },
+        "fileUrl": { "type": "string", "format": "uri" },
+        "citations": { "type": "number" }
+      },
+      "required": ["id", "facultyUid", "title", "publicationDate"]
+    },
+    "announcements": {
+      "title": "Announcement",
+      "description": "System-wide or targeted announcements",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "targetRole": { "type": "string", "enum": ["all", "hod", "faculty"] }
+      },
+      "required": ["id", "title", "content", "authorUid", "createdAt", "targetRole"]
+    },
+    "teachers": {
+      "title": "Teacher",
+      "description": "Simple teacher records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "subject": { "type": "string" },
+        "information": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "subject", "information"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "users", "description": "User profiles" },
+    "/departments/{id}": { "schema": "departments", "description": "Academic departments" },
+    "/subjects/{id}": { "schema": "subjects", "description": "Subjects" },
+    "/courses/{id}": { "schema": "courses", "description": "Courses" },
+    "/attendance/{id}": { "schema": "attendance", "description": "Attendance records" },
+    "/timetable/{id}": { "schema": "timetable", "description": "Timetable entries" },
+    "/leaves/{id}": { "schema": "leaves", "description": "Leave applications" },
+    "/research/{id}": { "schema": "research", "description": "Research publications" },
+    "/announcements/{id}": { "schema": "announcements", "description": "Announcements" },
+    "/teachers/{id}": { "schema": "teachers", "description": "Teacher records" }
+  }
+}

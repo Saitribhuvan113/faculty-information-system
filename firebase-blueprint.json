@@ -125,18 +125,21 @@
       },
       "required": ["id", "title", "content", "authorUid", "createdAt", "targetRole"]
     },
-    "teachers": {
-      "title": "Teacher",
-      "description": "Simple teacher records",
+    "events": {
+      "title": "Event",
+      "description": "Upcoming college events",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "name": { "type": "string" },
-        "subject": { "type": "string" },
-        "information": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "time": { "type": "string" },
+        "location": { "type": "string" },
+        "authorUid": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["name", "subject", "information"]
+      "required": ["id", "title", "date", "authorUid", "createdAt"]
     }
   },
   "firestore": {
@@ -149,6 +152,6 @@
     "/leaves/{id}": { "schema": "leaves", "description": "Leave applications" },
     "/research/{id}": { "schema": "research", "description": "Research publications" },
     "/announcements/{id}": { "schema": "announcements", "description": "Announcements" },
-    "/teachers/{id}": { "schema": "teachers", "description": "Teacher records" }
+    "/events/{id}": { "schema": "events", "description": "College events" }
   }
 }

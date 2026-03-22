@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, getDocs, where, onSnapshot, addDoc, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { UserProfile, TimetableEntry, Subject, Course } from '../../types';
-import { Calendar, Plus, Clock, MapPin, Trash2, Edit2, XCircle, AlertCircle, Users } from 'lucide-react';
+import { Calendar, Plus, Clock, MapPin, Trash2, Edit2, XCircle, AlertCircle, Users, RotateCcw, X as CloseIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function TimetableManagement({ profile }: { profile: UserProfile }) {
@@ -10,9 +10,16 @@ export default function TimetableManagement({ profile }: { profile: UserProfile 
   const [facultyList, setFacultyList] = useState<UserProfile[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<TimetableEntry | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [lastDeleted, setLastDeleted] = useState<TimetableEntry | null>(null);
+  const [showUndo, setShowUndo] = useState(false);
+
+  const isAdmin = profile.role === 'admin';
+  const isHOD = profile.role === 'hod';
+  const canManage = isAdmin || isHOD;
 
   // Filter state
   const [filterDay, setFilterDay] = useState<string>('All');
@@ -23,20 +30,25 @@ export default function TimetableManagement({ profile }: { profile: UserProfile 
   const [facultyUid, setFacultyUid] = useState('');
   const [facultyName, setFacultyName] = useState('');
   const [subjectName, setSubjectName] = useState('');
-  const [courseId, setCourseId] = useState('Computer Engineering');
+  const [courseName, setCourseName] = useState('');
   const [day, setDay] = useState<'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'>('Monday');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      // Filter for Computer Engineering faculty only
-      const facultySnap = await getDocs(query(
-        collection(db, 'users'), 
-        where('role', '==', 'faculty'),
-        where('departmentId', '==', 'Computer Engineering')
-      ));
-      setFacultyList(facultySnap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile)));
+      let facultyQuery;
+      if (isAdmin) {
+        facultyQuery = query(collection(db, 'users'), where('role', 'in', ['faculty', 'hod']));
+      } else if (isHOD) {
+        facultyQuery = query(collection(db, 'users'), where('departmentId', '==', profile.departmentId));
+      } else {
+        facultyQuery = query(collection(db, 'users'), where('uid', '==', profile.uid));
+      }
+
+      const facultySnap = await getDocs(facultyQuery);
+      const facultyData = facultySnap.docs.map(d => ({ uid: d.id, ...(d.data() as any) } as UserProfile));
+      setFacultyList(facultyData);
 
       const subjectsSnap = await getDocs(collection(db, 'subjects'));
       setSubjects(subjectsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Subject)));
@@ -48,8 +60,10 @@ export default function TimetableManagement({ profile }: { profile: UserProfile 
     fetchInitialData();
 
     let timetableQuery;
-    if (profile.role === 'admin') {
+    if (isAdmin) {
       timetableQuery = query(collection(db, 'timetable'));
+    } else if (isHOD && profile.departmentId) {
+      timetableQuery = query(collection(db, 'timetable'), where('departmentId', '==', profile.departmentId));
     } else {
       timetableQuery = query(collection(db, 'timetable'), where('facultyUid', '==', profile.uid));
     }
@@ -59,44 +73,83 @@ export default function TimetableManagement({ profile }: { profile: UserProfile 
     });
 
     return () => unsubscribe();
-  }, [profile.uid, profile.role]);
+  }, [profile.uid, profile.role, profile.departmentId, isAdmin, isHOD]);
 
-  const handleAddEntry = async (e: React.FormEvent) => {
+  const handleAddOrUpdateEntry = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
     try {
-      await addDoc(collection(db, 'timetable'), {
-        facultyUid: facultyUid || 'manual',
+      const entryData = {
+        facultyUid,
         facultyName,
         subjectId: subjectName,
-        courseId,
+        courseId: courseName,
         day,
         startTime,
-        endTime
-      });
-      setShowAddModal(false);
+        endTime,
+        departmentId: profile.departmentId // Add department context
+      };
+
+      if (editingEntry) {
+        await updateDoc(doc(db, 'timetable', editingEntry.id), entryData);
+      } else {
+        await addDoc(collection(db, 'timetable'), entryData);
+      }
+      
+      setShowModal(false);
+      setEditingEntry(null);
       // Reset form
       setFacultyUid('');
       setFacultyName('');
       setSubjectName('');
-      setCourseId('Computer Engineering');
+      setCourseName('');
       setStartTime('');
       setEndTime('');
     } catch (err: any) {
-      setError(err.message || 'Failed to add timetable entry');
+      setError(err.message || 'Failed to save timetable entry');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleEdit = (entry: TimetableEntry) => {
+    setEditingEntry(entry);
+    setFacultyUid(entry.facultyUid);
+    setFacultyName(entry.facultyName);
+    setSubjectName(entry.subjectId);
+    setCourseName(entry.courseId);
+    setDay(entry.day);
+    setStartTime(entry.startTime);
+    setEndTime(entry.endTime);
+    setShowModal(true);
+  };
+
+  const handleDelete = async (entry: TimetableEntry) => {
     if (!window.confirm('Are you sure you want to delete this entry?')) return;
     try {
-      await deleteDoc(doc(db, 'timetable', id));
+      setLastDeleted(entry);
+      setShowUndo(true);
+      await deleteDoc(doc(db, 'timetable', entry.id));
+      
+      setTimeout(() => {
+        setShowUndo(false);
+      }, 5000);
     } catch (err) {
       console.error('Error deleting entry:', err);
+    }
+  };
+
+  const handleUndoDelete = async () => {
+    if (!lastDeleted) return;
+    try {
+      const { id, ...data } = lastDeleted as TimetableEntry;
+      await addDoc(collection(db, 'timetable'), data);
+      setLastDeleted(null);
+      setShowUndo(false);
+    } catch (err) {
+      console.error('Error undoing delete:', err);
     }
   };
 
@@ -147,9 +200,18 @@ export default function TimetableManagement({ profile }: { profile: UserProfile 
             </select>
           </div>
 
-          {profile.role === 'admin' && (
+          {canManage && (
             <button
-              onClick={() => setShowAddModal(true)}
+              onClick={() => {
+                setEditingEntry(null);
+                setFacultyUid('');
+                setFacultyName('');
+                setSubjectName('');
+                setCourseName('');
+                setStartTime('');
+                setEndTime('');
+                setShowModal(true);
+              }}
               className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-5 rounded-2xl shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 text-sm"
             >
               <Plus size={18} />
@@ -188,13 +250,21 @@ export default function TimetableManagement({ profile }: { profile: UserProfile 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {dayEntries.map((entry) => (
                       <div key={entry.id} className="p-5 rounded-2xl border border-slate-100 hover:border-indigo-100 hover:bg-indigo-50/30 transition-all group relative">
-                        {profile.role === 'admin' && (
-                          <button
-                            onClick={() => handleDelete(entry.id)}
-                            className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                        {canManage && (
+                          <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleEdit(entry)}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white rounded-xl transition-all shadow-sm"
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(entry)}
+                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-white rounded-xl transition-all shadow-sm"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
                         )}
                         <div className="flex items-center gap-2 text-xs font-bold text-indigo-600 uppercase tracking-wider mb-2">
                           <Clock size={14} />
@@ -218,15 +288,55 @@ export default function TimetableManagement({ profile }: { profile: UserProfile 
         })}
       </div>
 
-      {/* Add Schedule Modal */}
+      {/* Undo Notification */}
       <AnimatePresence>
-        {showAddModal && (
+        {showUndo && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                <Calendar size={20} />
+              </div>
+              <div>
+                <p className="font-bold text-sm">Schedule entry removed</p>
+                <p className="text-slate-400 text-xs">{lastDeleted?.subjectId} - {lastDeleted?.day}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 border-l border-slate-700 pl-6">
+              <button
+                onClick={handleUndoDelete}
+                className="flex items-center gap-2 text-indigo-400 hover:text-indigo-300 font-bold text-sm transition-colors"
+              >
+                <RotateCcw size={16} />
+                Undo
+              </button>
+              <button
+                onClick={() => setShowUndo(false)}
+                className="p-1 text-slate-500 hover:text-slate-300 transition-colors"
+              >
+                <CloseIcon size={18} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Add/Edit Schedule Modal */}
+      <AnimatePresence>
+        {showModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowAddModal(false)}
+              onClick={() => {
+                setShowModal(false);
+                setEditingEntry(null);
+              }}
               className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
             />
             <motion.div
@@ -236,8 +346,16 @@ export default function TimetableManagement({ profile }: { profile: UserProfile 
               className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl p-8"
             >
               <div className="flex items-center justify-between mb-8">
-                <h3 className="text-xl font-bold text-slate-900">Add Schedule Entry</h3>
-                <button onClick={() => setShowAddModal(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-all">
+                <h3 className="text-xl font-bold text-slate-900">
+                  {editingEntry ? 'Edit Schedule Entry' : 'Add Schedule Entry'}
+                </h3>
+                <button 
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingEntry(null);
+                  }} 
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-all"
+                >
                   <XCircle size={24} />
                 </button>
               </div>
@@ -249,18 +367,23 @@ export default function TimetableManagement({ profile }: { profile: UserProfile 
                 </div>
               )}
 
-              <form onSubmit={handleAddEntry} className="space-y-5">
+              <form onSubmit={handleAddOrUpdateEntry} className="space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Faculty Name</label>
-                    <input
-                      type="text"
+                    <label className="block text-sm font-semibold text-slate-700 mb-2">Faculty</label>
+                    <select
                       required
-                      placeholder="Enter Faculty Name"
-                      value={facultyName}
-                      onChange={(e) => setFacultyName(e.target.value)}
+                      value={facultyUid}
+                      onChange={(e) => {
+                        const f = facultyList.find(fac => fac.uid === e.target.value);
+                        setFacultyUid(e.target.value);
+                        setFacultyName(f?.displayName || '');
+                      }}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    />
+                    >
+                      <option value="">Select Faculty</option>
+                      {facultyList.map(f => <option key={f.uid} value={f.uid}>{f.displayName}</option>)}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Day</label>
@@ -277,23 +400,27 @@ export default function TimetableManagement({ profile }: { profile: UserProfile 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Subject</label>
-                    <input
-                      type="text"
+                    <select
                       required
-                      placeholder="Enter Subject Name"
                       value={subjectName}
                       onChange={(e) => setSubjectName(e.target.value)}
                       className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                    />
+                    >
+                      <option value="">Select Subject</option>
+                      {subjects.map(s => <option key={s.id} value={s.name}>{s.name} ({s.code})</option>)}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">Course</label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={courseId}
-                      className="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-2xl text-slate-500 cursor-not-allowed outline-none"
-                    />
+                    <select
+                      required
+                      value={courseName}
+                      onChange={(e) => setCourseName(e.target.value)}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    >
+                      <option value="">Select Course</option>
+                      {courses.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
                   </div>
                 </div>
 
@@ -328,7 +455,7 @@ export default function TimetableManagement({ profile }: { profile: UserProfile 
                   {loading ? (
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   ) : (
-                    'Save Entry'
+                    editingEntry ? 'Update Entry' : 'Save Entry'
                   )}
                 </button>
               </form>

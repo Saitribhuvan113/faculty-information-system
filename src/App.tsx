@@ -40,8 +40,9 @@ import TimetableManagement from './components/Timetable/TimetableManagement';
 import LeaveManagement from './components/Leave/LeaveManagement';
 import ResearchManagement from './components/Research/ResearchManagement';
 import SubjectCourseManagement from './components/Management/SubjectCourseManagement';
-import TeacherManagement from './components/Management/TeacherManagement';
+import FacultyManagement from './components/Management/FacultyManagement';
 import Profile from './components/Profile/Profile';
+import EventsManagement from './components/Events/EventsManagement';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -78,7 +79,8 @@ const Layout = ({ user, profile, children }: { user: User, profile: UserProfile,
     { to: '/timetable', icon: Calendar, label: 'Timetable' },
     { to: '/leaves', icon: FileText, label: 'Leaves' },
     { to: '/research', icon: GraduationCap, label: 'Research' },
-    { to: '/teachers', icon: Users, label: 'Teachers' },
+    { to: '/events', icon: Calendar, label: 'Events' },
+    { to: '/faculty', icon: Users, label: 'Faculty' },
     { to: '/profile', icon: UserIcon, label: 'Profile' },
   ];
 
@@ -342,12 +344,12 @@ export default function App() {
           ) : <Navigate to="/login" />
         } />
 
-        <Route path="/teachers" element={
-          user && profile ? (
+        <Route path="/faculty" element={
+          user && profile && (profile.role === 'admin' || profile.role === 'hod') ? (
             <Layout user={user} profile={profile}>
-              <TeacherManagement profile={profile} />
+              <FacultyManagement profile={profile} />
             </Layout>
-          ) : <Navigate to="/login" />
+          ) : <Navigate to="/" />
         } />
 
         <Route path="/management" element={
@@ -362,6 +364,14 @@ export default function App() {
           user && profile ? (
             <Layout user={user} profile={profile}>
               <Profile profile={profile} />
+            </Layout>
+          ) : <Navigate to="/login" />
+        } />
+
+        <Route path="/events" element={
+          user && profile ? (
+            <Layout user={user} profile={profile}>
+              <EventsManagement profile={profile} />
             </Layout>
           ) : <Navigate to="/login" />
         } />

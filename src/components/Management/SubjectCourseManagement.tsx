@@ -14,6 +14,7 @@ export default function SubjectCourseManagement({ profile }: { profile: UserProf
   
   const [newSubject, setNewSubject] = useState({ name: '', code: '', departmentId: '' });
   const [newCourse, setNewCourse] = useState({ name: '', code: '', departmentId: '' });
+  const [newDept, setNewDept] = useState({ name: '' });
 
   useEffect(() => {
     const unsubSubjects = onSnapshot(collection(db, 'subjects'), (snap) => {
@@ -47,6 +48,13 @@ export default function SubjectCourseManagement({ profile }: { profile: UserProf
     setNewCourse({ name: '', code: '', departmentId: '' });
   };
 
+  const handleAddDept = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDept.name) return;
+    await addDoc(collection(db, 'departments'), newDept);
+    setNewDept({ name: '' });
+  };
+
   const handleDelete = async (coll: string, id: string) => {
     if (!window.confirm('Are you sure?')) return;
     await deleteDoc(doc(db, coll, id));
@@ -78,125 +86,167 @@ export default function SubjectCourseManagement({ profile }: { profile: UserProf
       </div>
 
       {activeTab === 'academic' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Subjects Section */}
-          <div className="space-y-6">
-            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-              <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <BookOpen size={20} className="text-indigo-600" />
-                Add New Subject
-              </h3>
-              <form onSubmit={handleAddSubject} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-12">
+          {/* Departments Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1 space-y-6">
+              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+                <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+                  <LayoutGrid size={20} className="text-indigo-600" />
+                  Add Department
+                </h3>
+                <form onSubmit={handleAddDept} className="space-y-4">
                   <input
                     type="text"
-                    placeholder="Subject Name"
-                    value={newSubject.name}
-                    onChange={e => setNewSubject({...newSubject, name: e.target.value})}
-                    className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    placeholder="Department Name"
+                    value={newDept.name}
+                    onChange={e => setNewDept({...newDept, name: e.target.value})}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                   />
-                  <input
-                    type="text"
-                    placeholder="Subject Code"
-                    value={newSubject.code}
-                    onChange={e => setNewSubject({...newSubject, code: e.target.value})}
-                    className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  />
+                  <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl hover:bg-indigo-700 transition-all">
+                    Add Dept
+                  </button>
+                </form>
+              </div>
+
+              <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="px-8 py-5 border-b border-slate-100">
+                  <h3 className="font-bold text-slate-900">Departments</h3>
                 </div>
-                <select
-                  value={newSubject.departmentId}
-                  onChange={e => setNewSubject({...newSubject, departmentId: e.target.value})}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                >
-                  <option value="">Select Department</option>
-                  {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-                </select>
-                <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl hover:bg-indigo-700 transition-all">
-                  Add Subject
-                </button>
-              </form>
-            </div>
-
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="px-8 py-5 border-b border-slate-100">
-                <h3 className="font-bold text-slate-900">Subject List</h3>
-              </div>
-              <div className="divide-y divide-slate-50">
-                {subjects.map(s => (
-                  <div key={s.id} className="px-8 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                    <div>
-                      <p className="font-bold text-slate-900">{s.name}</p>
-                      <p className="text-xs text-slate-500">{s.code} • {s.departmentId}</p>
+                <div className="divide-y divide-slate-50">
+                  {departments.map(d => (
+                    <div key={d.id} className="px-8 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                      <p className="font-bold text-slate-900">{d.name}</p>
+                      <button onClick={() => handleDelete('departments', d.id)} className="p-2 text-slate-300 hover:text-red-600 transition-colors">
+                        <Trash2 size={18} />
+                      </button>
                     </div>
-                    <button onClick={() => handleDelete('subjects', s.id)} className="p-2 text-slate-300 hover:text-red-600 transition-colors">
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Courses Section */}
-          <div className="space-y-6">
-            <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-              <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <GraduationCap size={20} className="text-indigo-600" />
-                Add New Course
-              </h3>
-              <form onSubmit={handleAddCourse} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <input
-                    type="text"
-                    placeholder="Course Name"
-                    value={newCourse.name}
-                    onChange={e => setNewCourse({...newCourse, name: e.target.value})}
-                    className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Course Code"
-                    value={newCourse.code}
-                    onChange={e => setNewCourse({...newCourse, code: e.target.value})}
-                    className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                  />
+                  ))}
                 </div>
-                <select
-                  value={newCourse.departmentId}
-                  onChange={e => setNewCourse({...newCourse, departmentId: e.target.value})}
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                >
-                  <option value="">Select Department</option>
-                  {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-                </select>
-                <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl hover:bg-indigo-700 transition-all">
-                  Add Course
-                </button>
-              </form>
+              </div>
             </div>
 
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="px-8 py-5 border-b border-slate-100">
-                <h3 className="font-bold text-slate-900">Course List</h3>
-              </div>
-              <div className="divide-y divide-slate-50">
-                {courses.map(c => (
-                  <div key={c.id} className="px-8 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                    <div>
-                      <p className="font-bold text-slate-900">{c.name}</p>
-                      <p className="text-xs text-slate-500">{c.code} • {c.departmentId}</p>
+            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Subjects Section */}
+              <div className="space-y-6">
+                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm h-fit">
+                  <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+                    <BookOpen size={20} className="text-indigo-600" />
+                    Add Subject
+                  </h3>
+                  <form onSubmit={handleAddSubject} className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4">
+                      <input
+                        type="text"
+                        placeholder="Subject Name"
+                        value={newSubject.name}
+                        onChange={e => setNewSubject({...newSubject, name: e.target.value})}
+                        className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Subject Code"
+                        value={newSubject.code}
+                        onChange={e => setNewSubject({...newSubject, code: e.target.value})}
+                        className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      />
                     </div>
-                    <button onClick={() => handleDelete('courses', c.id)} className="p-2 text-slate-300 hover:text-red-600 transition-colors">
-                      <Trash2 size={18} />
+                    <select
+                      value={newSubject.departmentId}
+                      onChange={e => setNewSubject({...newSubject, departmentId: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+                    </select>
+                    <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl hover:bg-indigo-700 transition-all">
+                      Add Subject
                     </button>
+                  </form>
+                </div>
+
+                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="px-8 py-5 border-b border-slate-100">
+                    <h3 className="font-bold text-slate-900">Subjects</h3>
                   </div>
-                ))}
+                  <div className="divide-y divide-slate-50">
+                    {subjects.map(s => (
+                      <div key={s.id} className="px-8 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div>
+                          <p className="font-bold text-slate-900">{s.name}</p>
+                          <p className="text-xs text-slate-500">{s.code} • {s.departmentId}</p>
+                        </div>
+                        <button onClick={() => handleDelete('subjects', s.id)} className="p-2 text-slate-300 hover:text-red-600 transition-colors">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Courses Section */}
+              <div className="space-y-6">
+                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm h-fit">
+                  <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+                    <GraduationCap size={20} className="text-indigo-600" />
+                    Add Course
+                  </h3>
+                  <form onSubmit={handleAddCourse} className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4">
+                      <input
+                        type="text"
+                        placeholder="Course Name"
+                        value={newCourse.name}
+                        onChange={e => setNewCourse({...newCourse, name: e.target.value})}
+                        className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Course Code"
+                        value={newCourse.code}
+                        onChange={e => setNewCourse({...newCourse, code: e.target.value})}
+                        className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      />
+                    </div>
+                    <select
+                      value={newCourse.departmentId}
+                      onChange={e => setNewCourse({...newCourse, departmentId: e.target.value})}
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    >
+                      <option value="">Select Department</option>
+                      {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+                    </select>
+                    <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-3 rounded-2xl hover:bg-indigo-700 transition-all">
+                      Add Course
+                    </button>
+                  </form>
+                </div>
+
+                <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="px-8 py-5 border-b border-slate-100">
+                    <h3 className="font-bold text-slate-900">Courses</h3>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {courses.map(c => (
+                      <div key={c.id} className="px-8 py-4 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div>
+                          <p className="font-bold text-slate-900">{c.name}</p>
+                          <p className="text-xs text-slate-500">{c.code} • {c.departmentId}</p>
+                        </div>
+                        <button onClick={() => handleDelete('courses', c.id)} className="p-2 text-slate-300 hover:text-red-600 transition-colors">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
       ) : (
-        <FacultyManagement />
+        <FacultyManagement profile={profile} />
       )}
     </div>
   );

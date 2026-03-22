@@ -152,6 +152,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (isOwner(uid) || isAdmin() || (isHOD() && getUserData().departmentId == resource.data.departmentId));
       allow create: if isAdmin() || (isOwner(uid) && !('role' in request.resource.data)); // Users can create their own profile but not set role
       allow update: if isAdmin() || (isOwner(uid) && request.resource.data.role == resource.data.role); // Users can update but not change role
+      allow delete: if isAdmin();
     }
 
     match /departments/{id} {
@@ -202,7 +203,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /teachers/{id} {
+    match /events/{id} {
       allow read: if isAuthenticated();
       allow write: if isAdmin() || isHOD();
     }

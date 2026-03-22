@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { collection, query, getDocs, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { UserProfile, TimetableEntry, LeaveRequest, ResearchPublication } from '../../types';
-import { Calendar, FileText, GraduationCap, Clock, BookOpen, ChevronRight, Users, ClipboardList } from 'lucide-react';
+import { UserProfile, TimetableEntry, LeaveRequest, ResearchPublication, CollegeEvent } from '../../types';
+import { Calendar, FileText, GraduationCap, Clock, BookOpen, ChevronRight, Users, ClipboardList, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function FacultyDashboard({ profile }: { profile: UserProfile }) {
+  const navigate = useNavigate();
   const [timetable, setTimetable] = useState<TimetableEntry[]>([]);
   const [recentLeaves, setRecentLeaves] = useState<LeaveRequest[]>([]);
   const [publications, setPublications] = useState<ResearchPublication[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<CollegeEvent[]>([]);
 
   useEffect(() => {
     const timetableQuery = query(collection(db, 'timetable'), where('facultyUid', '==', profile.uid));
@@ -27,10 +30,25 @@ export default function FacultyDashboard({ profile }: { profile: UserProfile }) 
       setPublications(snap.docs.map(d => ({ id: d.id, ...d.data() } as ResearchPublication)));
     });
 
+    // Fetch upcoming events
+    const today = new Date().toISOString().split('T')[0];
+    const eventsQuery = query(
+      collection(db, 'events'), 
+      where('date', '>=', today),
+      orderBy('date', 'asc'),
+      limit(3)
+    );
+
+    const unsubEvents = onSnapshot(eventsQuery, (snapshot) => {
+      const events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as CollegeEvent[];
+      setUpcomingEvents(events);
+    });
+
     return () => {
       unsubTimetable();
       unsubLeaves();
       unsubResearch();
+      unsubEvents();
     };
   }, [profile.uid]);
 
@@ -152,6 +170,47 @@ export default function FacultyDashboard({ profile }: { profile: UserProfile }) 
                 <Users size={24} />
                 <span className="text-xs font-semibold">Profile</span>
               </button>
+            </div>
+          </div>
+
+          <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <Calendar size={20} className="text-indigo-600" />
+                Upcoming Events
+              </h3>
+              <Link to="/events" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">View All</Link>
+            </div>
+            <div className="space-y-4">
+              {upcomingEvents.length > 0 ? (
+                upcomingEvents.map((event) => (
+                  <div key={event.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="w-12 h-12 bg-white rounded-xl flex flex-col items-center justify-center shadow-sm border border-slate-100">
+                      <span className="text-[10px] font-bold text-indigo-600 uppercase">{new Date(event.date).toLocaleString('default', { month: 'short' })}</span>
+                      <span className="text-lg font-black text-slate-900 leading-none">{new Date(event.date).getDate()}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-slate-900 truncate">{event.title}</h4>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+                          <Clock size={12} className="text-indigo-500" />
+                          {event.time || 'All Day'}
+                        </span>
+                        {event.location && (
+                          <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+                            <MapPin size={12} className="text-indigo-500" />
+                            {event.location}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <p className="text-sm text-slate-500">No upcoming events</p>
+                </div>
+              )}
             </div>
           </div>
 

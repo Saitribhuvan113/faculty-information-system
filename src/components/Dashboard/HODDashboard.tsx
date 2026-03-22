@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, query, getDocs, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, getDocs, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { UserProfile, LeaveRequest } from '../../types';
-import { Users, FileText, CheckCircle, XCircle, Clock, Calendar, ClipboardList, GraduationCap, PlusCircle } from 'lucide-react';
+import { UserProfile, LeaveRequest, CollegeEvent } from '../../types';
+import { Users, FileText, CheckCircle, XCircle, Clock, Calendar, ClipboardList, GraduationCap, PlusCircle, MapPin, CalendarDays } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const QuickActionCard = ({ to, icon: Icon, label, description, color }: { to: string, icon: any, label: string, description: string, color: string }) => (
@@ -21,6 +21,7 @@ const QuickActionCard = ({ to, icon: Icon, label, description, color }: { to: st
 
 export default function HODDashboard({ profile }: { profile: UserProfile }) {
   const [pendingLeaves, setPendingLeaves] = useState<LeaveRequest[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<CollegeEvent[]>([]);
   const [deptStats, setDeptStats] = useState({
     totalFaculty: 0,
     presentToday: 0
@@ -34,11 +35,9 @@ export default function HODDashboard({ profile }: { profile: UserProfile }) {
       where('status', '==', 'pending')
     );
 
-    const unsubscribe = onSnapshot(leaveQuery, async (snapshot) => {
+    const unsubscribeLeaves = onSnapshot(leaveQuery, async (snapshot) => {
       const leaves = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LeaveRequest));
       
-      // Filter leaves by department (since Firestore doesn't support deep joins easily here)
-      // In a real app, we'd store departmentId on the leave request itself
       const facultyInDept = await getDocs(query(collection(db, 'users'), where('departmentId', '==', profile.departmentId)));
       const facultyUids = facultyInDept.docs.map(d => d.id);
       
@@ -46,7 +45,24 @@ export default function HODDashboard({ profile }: { profile: UserProfile }) {
       setDeptStats(prev => ({ ...prev, totalFaculty: facultyInDept.size }));
     });
 
-    return () => unsubscribe();
+    // Fetch upcoming events
+    const today = new Date().toISOString().split('T')[0];
+    const eventsQuery = query(
+      collection(db, 'events'), 
+      where('date', '>=', today),
+      orderBy('date', 'asc'),
+      limit(3)
+    );
+
+    const unsubscribeEvents = onSnapshot(eventsQuery, (snapshot) => {
+      const events = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as CollegeEvent[];
+      setUpcomingEvents(events);
+    });
+
+    return () => {
+      unsubscribeLeaves();
+      unsubscribeEvents();
+    };
   }, [profile.departmentId]);
 
   return (
@@ -98,11 +114,18 @@ export default function HODDashboard({ profile }: { profile: UserProfile }) {
         <h3 className="text-lg font-bold text-slate-900 mb-6">Quick Actions</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <QuickActionCard 
-            to="/teachers" 
-            icon={PlusCircle} 
-            label="Add Teacher" 
-            description="Register a new faculty member" 
+            to="/faculty" 
+            icon={Users} 
+            label="Faculty List" 
+            description="View department faculty" 
             color="bg-indigo-600 shadow-indigo-200"
+          />
+          <QuickActionCard 
+            to="/events" 
+            icon={CalendarDays} 
+            label="Manage Events" 
+            description="Add or remove college events" 
+            color="bg-purple-600 shadow-purple-200"
           />
           <QuickActionCard 
             to="/attendance" 
@@ -128,50 +151,87 @@ export default function HODDashboard({ profile }: { profile: UserProfile }) {
         </div>
       </div>
 
-      <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-        <h3 className="text-lg font-bold text-slate-900 mb-6">Pending Leave Requests</h3>
-        {pendingLeaves.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mx-auto mb-4">
-              <FileText size={32} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+          <h3 className="text-lg font-bold text-slate-900 mb-6">Pending Leave Requests</h3>
+          {pendingLeaves.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center text-slate-300 mx-auto mb-4">
+                <FileText size={32} />
+              </div>
+              <p className="text-slate-500">No pending leave requests</p>
             </div>
-            <p className="text-slate-500">No pending leave requests</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                  <th className="pb-4">Faculty</th>
-                  <th className="pb-4">Type</th>
-                  <th className="pb-4">Duration</th>
-                  <th className="pb-4">Reason</th>
-                  <th className="pb-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {pendingLeaves.map((leave) => (
-                  <tr key={leave.id} className="text-sm">
-                    <td className="py-4 font-semibold text-slate-900">{leave.facultyUid}</td>
-                    <td className="py-4 text-slate-600">{leave.type}</td>
-                    <td className="py-4 text-slate-600">{leave.startDate} to {leave.endDate}</td>
-                    <td className="py-4 text-slate-600 max-w-xs truncate">{leave.reason}</td>
-                    <td className="py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <button title="Approve leave" className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors">
-                          <CheckCircle size={20} />
-                        </button>
-                        <button title="Reject leave" className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors">
-                          <XCircle size={20} />
-                        </button>
-                      </div>
-                    </td>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100">
+                    <th className="pb-4">Faculty</th>
+                    <th className="pb-4">Type</th>
+                    <th className="pb-4 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {pendingLeaves.map((leave) => (
+                    <tr key={leave.id} className="text-sm">
+                      <td className="py-4 font-semibold text-slate-900">{leave.facultyUid}</td>
+                      <td className="py-4 text-slate-600">{leave.type}</td>
+                      <td className="py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button title="Approve leave" className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors">
+                            <CheckCircle size={20} />
+                          </button>
+                          <button title="Reject leave" className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors">
+                            <XCircle size={20} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-bold text-slate-900">Upcoming Events</h3>
+            <Link to="/events" className="text-sm font-bold text-indigo-600 hover:text-indigo-700">View All</Link>
           </div>
-        )}
+          <div className="space-y-4">
+            {upcomingEvents.length > 0 ? (
+              upcomingEvents.map((event) => (
+                <div key={event.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="w-12 h-12 bg-white rounded-xl flex flex-col items-center justify-center shadow-sm border border-slate-100">
+                    <span className="text-[10px] font-bold text-indigo-600 uppercase">{new Date(event.date).toLocaleString('default', { month: 'short' })}</span>
+                    <span className="text-lg font-black text-slate-900 leading-none">{new Date(event.date).getDate()}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-slate-900 truncate">{event.title}</h4>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+                        <Clock size={12} className="text-indigo-500" />
+                        {event.time || 'All Day'}
+                      </span>
+                      {event.location && (
+                        <span className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+                          <MapPin size={12} className="text-indigo-500" />
+                          {event.location}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <Calendar className="w-12 h-12 text-slate-200 mx-auto mb-2" />
+                <p className="text-sm text-slate-500">No upcoming events</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

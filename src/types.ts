@@ -47,6 +47,7 @@ export interface TimetableEntry {
   day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
   startTime: string;
   endTime: string;
+  departmentId?: string;
 }
 
 export interface LeaveRequest {
@@ -85,5 +86,16 @@ export interface Teacher {
   name: string;
   subject: string;
   information: string;
+  createdAt: string;
+}
+
+export interface CollegeEvent {
+  id: string;
+  title: string;
+  description?: string;
+  date: string;
+  time?: string;
+  location?: string;
+  authorUid: string;
   createdAt: string;
 }
